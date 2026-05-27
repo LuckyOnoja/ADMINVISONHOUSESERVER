@@ -1,0 +1,48 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Admin {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  password  String
+  createdAt DateTime @default(now())
+}
+
+model OperatingDay {
+  id          String   @id @default(uuid())
+  date        String   @unique // ISO format YYYY-MM-DD
+  isOperating Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Booking {
+  id                 String        @id @default(uuid())
+  packageId          String        // serenity-arch, neo-tide, velvet-corner, amber-lounge, elite-circle, iconic-oasis, podcast
+  packageName        String
+  customerName       String
+  customerEmail      String
+  customerPhone      String
+  bookingDate        String        // YYYY-MM-DD
+  startTime          String        // 24h format (e.g., "13:00")
+  durationMinutes    Int           // 30 or 60
+  amount             Float
+  status             BookingStatus @default(PENDING)
+  paystackReference  String        @unique
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@index([packageId, bookingDate, startTime])
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+}
