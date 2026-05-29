@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
 import prisma from "../db";
+import { generateSessionId } from "../utils/generateSessionId";
+import { sendConfirmationEmail } from "../services/email.service";
 
 // Rate cards and descriptions
 interface PackageConfig {
@@ -216,6 +218,7 @@ export const initiateBooking = async (req: Request, res: Response) => {
 
     // 4. Generate transaction reference
     const paystackReference = `CSB-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const sessionId = await generateSessionId();
 
     // 5. Initialize Paystack Transaction
     const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
@@ -234,7 +237,8 @@ export const initiateBooking = async (req: Request, res: Response) => {
           durationMinutes: duration,
           amount: amountNGN,
           status: "PENDING",
-          paystackReference
+          paystackReference,
+          sessionId
         }
       });
 
@@ -279,7 +283,8 @@ export const initiateBooking = async (req: Request, res: Response) => {
         durationMinutes: duration,
         amount: amountNGN,
         status: "PENDING",
-        paystackReference
+        paystackReference,
+        sessionId
       }
     });
 
@@ -315,16 +320,32 @@ export const verifyBooking = async (req: Request, res: Response) => {
       return res.json({ success: true, booking, message: "Booking already confirmed." });
     }
 
+    // Helper to confirm booking and trigger immediate confirmation email
+    const confirmAndSendEmail = async (ref: string) => {
+      const confirmed = await prisma.booking.update({
+        where: { paystackReference: ref },
+        data: { status: "CONFIRMED" }
+      });
+
+      try {
+        await sendConfirmationEmail(confirmed);
+        return await prisma.booking.update({
+          where: { id: confirmed.id },
+          data: { confirmationEmailSent: true }
+        });
+      } catch (err) {
+        console.error("❌ Failed to send confirmation email on verification:", err);
+        return confirmed;
+      }
+    };
+
     // Check if it's a mock payment flow
     const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
     const isMock = !paystackSecret || paystackSecret.startsWith("sk_test_placeholder");
 
     if (isMock) {
       // Mock payment success for testing
-      const confirmedBooking = await prisma.booking.update({
-        where: { paystackReference: reference },
-        data: { status: "CONFIRMED" }
-      });
+      const confirmedBooking = await confirmAndSendEmail(reference);
       return res.json({ success: true, booking: confirmedBooking, message: "[MOCK] Payment received. Booking confirmed." });
     }
 
@@ -340,10 +361,7 @@ export const verifyBooking = async (req: Request, res: Response) => {
 
     if (paystackRes.ok && paystackData.status && paystackData.data.status === "success") {
       // Finalize booking to CONFIRMED
-      const confirmedBooking = await prisma.booking.update({
-        where: { paystackReference: reference },
-        data: { status: "CONFIRMED" }
-      });
+      const confirmedBooking = await confirmAndSendEmail(reference);
 
       return res.json({
         success: true,

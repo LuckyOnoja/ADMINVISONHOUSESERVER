@@ -33,10 +33,14 @@ model Booking {
   startTime          String        // 24h format (e.g., "13:00")
   durationMinutes    Int           // 30 or 60
   amount             Float
-  status             BookingStatus @default(PENDING)
-  paystackReference  String        @unique
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  status                 BookingStatus @default(PENDING)
+  paystackReference      String        @unique
+  sessionId              String?       @unique
+  confirmationEmailSent  Boolean       @default(false)
+  dayBeforeEmailSent     Boolean       @default(false)
+  hourBeforeEmailSent    Boolean       @default(false)
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
 
   @@index([packageId, bookingDate, startTime])
 }

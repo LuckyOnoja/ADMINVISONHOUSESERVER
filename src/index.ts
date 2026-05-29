@@ -14,6 +14,7 @@ import {
   getAdminBookings
 } from "./controllers/bookings.controller";
 import { authenticateAdmin } from "./middlewares/auth.middleware";
+import { startReminderScheduler } from "./services/reminder.scheduler";
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -56,4 +57,7 @@ app.listen(PORT, async () => {
 
   // Seed default admin if table is empty
   await seedDefaultAdmin();
+
+  // Start the background email reminder scheduler
+  startReminderScheduler();
 });
